@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readDatabase, updateDatabase } from "@/lib/db/persistent-store";
 import {
+  enviarCorreoContactoEmailJS,
+  enviarRespuestaOperadorEmailJS,
+  type ResultadoEmailJS,
+} from "@/lib/email/emailjs";
+import {
   ConsultaContactoSchema,
   RegistroUsuarioSchema,
   RespuestaOperadorSchema,
@@ -38,6 +43,26 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { action, payload } = body as { action: string; payload: Record<string, unknown> };
+
+    let emailResult: ResultadoEmailJS | undefined;
+
+    if (action === "ENVIAR_CONSULTA") {
+      const parsed = ConsultaContactoSchema.parse(payload);
+      emailResult = await enviarCorreoContactoEmailJS(parsed);
+    } else if (action === "RESPONDER_CONSULTA") {
+      const parsed = RespuestaOperadorSchema.parse(payload);
+      const currentDb = await readDatabase();
+      const consulta = currentDb.consultas.find((c) => c.id === parsed.consultaId);
+      if (consulta) {
+        emailResult = await enviarRespuestaOperadorEmailJS({
+          destinatarioNombre: consulta.nombreCompleto,
+          destinatarioEmail: consulta.email,
+          operadorNombre: parsed.operadorNombre,
+          asuntoOriginal: consulta.asunto,
+          mensajeRespuesta: parsed.mensajeRespuesta,
+        });
+      }
+    }
 
     const updatedDb = await updateDatabase((db) => {
       const ahoraIso = new Date().toISOString();
@@ -292,7 +317,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({ ok: true, db: updatedDb });
+    return NextResponse.json({ ok: true, db: updatedDb, emailResult });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error interno del servidor";
     return NextResponse.json({ ok: false, error: message }, { status: 400 });

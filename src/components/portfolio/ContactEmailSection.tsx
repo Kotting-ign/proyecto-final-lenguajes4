@@ -13,6 +13,10 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
 import { usePortfolio } from "@/context/PortfolioContext";
+import {
+  DESTINATARIO_CARLOS_PACHECO,
+  obtenerDestinatarioConsulta,
+} from "@/data/integrantes";
 import type { TipoConsulta } from "@/data/portfolio";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -20,7 +24,8 @@ const TELEFONO_REGEX = /^[+\d\s()-]{8,22}$/;
 const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.'-]{3,70}$/;
 
 export function ContactEmailSection() {
-  const { integrantes, servicios, enviarConsulta } = usePortfolio();
+  const { integrantes, servicios, enviarConsulta, contactoDestino, setContactoDestino } =
+    usePortfolio();
   const { showToast } = useToast();
 
   const [nombreCompleto, setNombreCompleto] = useState("");
@@ -30,13 +35,21 @@ export function ContactEmailSection() {
   const [tipoConsulta, setTipoConsulta] = useState<TipoConsulta>(
     "Cotización de Proyecto",
   );
-  const [integranteDestinoId, setIntegranteDestinoId] = useState<string>("todos");
+  // El destinatario vive en el contexto para poder preseleccionarlo desde /equipo/[slug].
+  const integranteDestinoId = contactoDestino;
+  const setIntegranteDestinoId = setContactoDestino;
   const [presupuestoUsd, setPresupuestoUsd] = useState<string>("2000");
   const [asunto, setAsunto] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [adjunto, setAdjunto] = useState<ValidatedAttachment | null>(null);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [enviadoExito, setEnviadoExito] = useState(false);
+  const [ultimoDestinatario, setUltimoDestinatario] = useState<string>("");
+  const [enviando, setEnviando] = useState(false);
+
+  const destinatarioActual = obtenerDestinatarioConsulta(
+    integranteDestinoId === "carlos-pacheco" ? null : Number(integranteDestinoId),
+  );
 
   const serviciosActivos = servicios.filter((s) => s.activo);
 
@@ -71,21 +84,24 @@ export function ContactEmailSection() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validarFormulario()) {
       showToast("error", "Revisá los campos marcados en rojo antes de enviar.");
       return;
     }
 
-    enviarConsulta({
+    const etiquetaDestino = `${destinatarioActual.nombreCompleto} (${destinatarioActual.email})`;
+    setEnviando(true);
+
+    const resEmail = await enviarConsulta({
       nombreCompleto: nombreCompleto.trim(),
       email: email.trim(),
       telefono: telefono.trim(),
       empresa: empresa.trim() || "Particular",
       tipoConsulta,
       integranteDestinoId:
-        integranteDestinoId === "todos" ? null : Number(integranteDestinoId),
+        integranteDestinoId === "carlos-pacheco" ? null : Number(integranteDestinoId),
       presupuestoUsd:
         tipoConsulta === "Cotización de Proyecto" ? Number(presupuestoUsd) : null,
       asunto: asunto.trim(),
@@ -95,6 +111,14 @@ export function ContactEmailSection() {
       adjuntoTamanoKb: adjunto ? Math.round(adjunto.tamanoBytes / 1024) : null,
     });
 
+    setEnviando(false);
+
+    if (resEmail && !resEmail.enviado) {
+      showToast("error", `La consulta se guardó, pero falló EmailJS: ${resEmail.detalle}`);
+      return;
+    }
+
+    setUltimoDestinatario(resEmail?.detalle ?? etiquetaDestino);
     setEnviadoExito(true);
     setNombreCompleto("");
     setEmail("");
@@ -107,12 +131,12 @@ export function ContactEmailSection() {
 
     showToast(
       "success",
-      "¡Consulta enviada por email! Ya podés gestionarla y responderla desde el Panel de Operador.",
+      `¡${resEmail?.detalle ?? `Consulta enviada vía EmailJS a ${etiquetaDestino}`}!`,
     );
   };
 
   return (
-    <section id="servicios" className="py-16 sm:py-20 bg-cream-50">
+    <section id="servicios" className="scroll-mt-32 bg-cream-50 py-16 sm:py-20">
       <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
         {/* Catálogo de Servicios Fullstack Ofertados */}
         <div>
@@ -194,13 +218,13 @@ export function ContactEmailSection() {
         </div>
 
         {/* Formulario de Contacto vía Email con Validación Estricta */}
-        <div id="contacto" className="mt-20 pt-16 border-t border-border">
+        <div id="contacto" className="mt-20 scroll-mt-32 border-t border-border pt-16">
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
             <div className="lg:col-span-5 flex flex-col justify-between">
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-pill bg-brand-900 px-3 py-1 font-mono text-xs font-bold uppercase text-accent-500">
                   <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                  Sección 1.A y §3 · Validación Estricta
+                  Contacto · Validación Estricta
                 </span>
                 <h2 className="mt-3 font-display text-3xl font-extrabold uppercase tracking-tight text-brand-900 sm:text-4xl">
                   Formulario de Contacto vía Email
@@ -244,8 +268,9 @@ export function ContactEmailSection() {
                 {enviadoExito && (
                   <div className="flex items-center justify-between rounded-md border border-status-success/40 bg-status-success/10 px-4 py-3 text-xs font-bold text-status-success-strong">
                     <span>
-                      ✓ Tu solicitud fue registrada y notificada por email. Podés verla en el
-                      Panel de Operador (/admin).
+                      ✓ Tu solicitud fue enviada vía EmailJS a{" "}
+                      <strong>{ultimoDestinatario}</strong> y registrada en el Panel de Operador
+                      (/admin).
                     </span>
                     <button
                       type="button"
@@ -310,11 +335,15 @@ export function ContactEmailSection() {
                     label="Dirigido a"
                     value={integranteDestinoId}
                     onChange={(e) => setIntegranteDestinoId(e.target.value)}
+                    hint={`Destino: ${destinatarioActual.email}`}
                   >
-                    <option value="todos">Todo el Squad (4 Integrantes)</option>
+                    <option value="carlos-pacheco">
+                      {DESTINATARIO_CARLOS_PACHECO.nombreCompleto} (
+                      {DESTINATARIO_CARLOS_PACHECO.email})
+                    </option>
                     {integrantes.map((dev) => (
                       <option key={dev.id} value={String(dev.id)}>
-                        {dev.nombre} ({dev.rolPrincipal.split("&")[0].trim()})
+                        {dev.nombre} {dev.apellido} ({dev.email})
                       </option>
                     ))}
                   </Select>
@@ -358,10 +387,18 @@ export function ContactEmailSection() {
                   onChange={setAdjunto}
                 />
 
-                <div className="mt-2 flex items-center justify-end pt-3 border-t border-border">
-                  <Button type="submit" variant="primary" size="lg">
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
+                  <span className="font-mono text-xs text-text-secondary">
+                    Se enviará por EmailJS a:{" "}
+                    <strong className="text-brand-900">
+                      {destinatarioActual.nombreCompleto} &lt;{destinatarioActual.email}&gt;
+                    </strong>
+                  </span>
+                  <Button type="submit" variant="primary" size="lg" disabled={enviando}>
                     <Send className="h-4 w-4" aria-hidden="true" />
-                    Enviar Solicitud por Correo Electrónico
+                    {enviando
+                      ? "Enviando vía EmailJS..."
+                      : "Enviar Solicitud por Correo Electrónico"}
                   </Button>
                 </div>
               </form>

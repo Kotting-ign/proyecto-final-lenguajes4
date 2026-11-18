@@ -6,6 +6,8 @@
  * - Cada punto de integración lleva comentario `// BACKEND:` con tabla y endpoint.
  */
 
+import { INTEGRANTES_INICIALES } from "./integrantes";
+
 export type RolSistema = "visitante" | "registrado" | "operador" | "admin";
 
 export type MetodoAuth = "propio" | "google" | "github";
@@ -27,23 +29,60 @@ export type CategoriaProyecto =
   | "E-Commerce & Cloud"
   | "Realtime & APIs";
 
+export interface HabilidadTecnica {
+  nombre: string;
+  nivel: number; // 1-100 (autoevaluación)
+}
+
+export interface GrupoHabilidades {
+  categoria: string;
+  items: HabilidadTecnica[];
+}
+
+export interface HitoTrayectoria {
+  id: number;
+  periodo: string;
+  tipo: "proyecto" | "academico" | "laboral";
+  titulo: string;
+  entidad: string;
+  descripcion: string;
+  tecnologias: string[];
+}
+
+export interface ResponsabilidadIntegrante {
+  titulo: string;
+  descripcion: string;
+}
+
+export interface PerfilTecnico {
+  resumen: string[];
+  habilidades: GrupoHabilidades[];
+  herramientas: string[];
+  responsabilidades: ResponsabilidadIntegrante[];
+  trayectoria: HitoTrayectoria[];
+  intereses: string[];
+}
+
 export interface Integrante {
   id: number;
+  /** Segmento de URL del perfil: /equipo/[slug] */
+  slug: string;
   nombre: string;
   apellido: string;
   rolPrincipal: string;
   especialidad: string;
+  tagline: string;
   bio: string;
   email: string;
+  /** Usuario de GitHub; vacío = pendiente de configurar. */
   githubUser: string;
   linkedinUrl: string;
   ubicacion: string;
-  aniosExperiencia: number;
   avatarIniciales: string;
-  colorAcento: string;
   stackPrincipal: string[];
   logrosDestacados: string[];
   disponible: boolean;
+  perfilTecnico: PerfilTecnico;
 }
 
 export interface TecnologiaStack {
@@ -156,93 +195,9 @@ export interface MetricaDiaria {
   demosEjecutadas: number;
 }
 
+// Los perfiles técnicos viven en ./integrantes (fuente única, versionada con el código).
 // BACKEND: GET /api/integrantes → tabla integrante (los 4 desarrolladores fullstack del grupo)
-export const INTEGRANTES_INICIALES: Integrante[] = [
-  {
-    id: 1,
-    nombre: "Ignacio",
-    apellido: "Desarrollador 1",
-    rolPrincipal: "Tech Lead & Fullstack Frontend Architect",
-    especialidad: "Next.js App Router · Sistemas de Diseño · Animaciones Interactivas",
-    bio: "Especialista en arquitectura frontend escalable, componentes accesibles (WCAG AA) y conexión de flujos complejos con APIs REST y Server Actions.",
-    email: "ignacio@kodexasquad.dev",
-    githubUser: "vercel",
-    linkedinUrl: "https://linkedin.com",
-    ubicacion: "Argentina (UTC-3)",
-    aniosExperiencia: 4,
-    avatarIniciales: "IG",
-    colorAcento: "#0F172A",
-    stackPrincipal: ["Next.js 16", "React 19", "TypeScript", "Tailwind v4", "Framer Motion", "PostgreSQL"],
-    logrosDestacados: [
-      "Lideró el sistema de diseño Pet Bliss y la arquitectura de 72 componentes en Huellitas Felices.",
-      "Redujo el tiempo de carga LCP en un 42% aplicando SSR e hidratación selectiva.",
-    ],
-    disponible: true,
-  },
-  {
-    id: 2,
-    nombre: "Franco",
-    apellido: "Desarrollador 2",
-    rolPrincipal: "Lead Backend & Database Architect",
-    especialidad: "PostgreSQL · Contratos de API · Seguridad & Validación Estricta",
-    bio: "Ingeniero enfocado en modelado relacional SQL, procedimientos almacenados, triggers transaccionales y arquitectura en 5 capas (types, schema, repo, service, mapper).",
-    email: "franco@kodexasquad.dev",
-    githubUser: "supabase",
-    linkedinUrl: "https://linkedin.com",
-    ubicacion: "Argentina (UTC-3)",
-    aniosExperiencia: 4,
-    avatarIniciales: "FR",
-    colorAcento: "#1E293B",
-    stackPrincipal: ["Node.js", "PostgreSQL", "Zod", "TypeScript", "SQL Triggers", "REST APIs"],
-    logrosDestacados: [
-      "Diseñó un esquema relacional de 38 tablas con auditoría automática y códigos SQLSTATE personalizados.",
-      "Implementó autenticación con bloqueo por intentos fallidos y protección de sesiones HTTP-Only.",
-    ],
-    disponible: true,
-  },
-  {
-    id: 3,
-    nombre: "Valentina",
-    apellido: "Desarrolladora 3",
-    rolPrincipal: "Fullstack Cloud, APIs & DevOps Engineer",
-    especialidad: "Integración de APIs Web · OAuth · Despliegue Cloud & Testing",
-    bio: "Desarrolladora fullstack orientada a la integración de servicios externos (GitHub API, Email/SMTP, OAuth 2.0), pipelines CI/CD y resiliencia en la nube.",
-    email: "valentina@kodexasquad.dev",
-    githubUser: "nodejs",
-    linkedinUrl: "https://linkedin.com",
-    ubicacion: "Argentina (UTC-3)",
-    aniosExperiencia: 3,
-    avatarIniciales: "VA",
-    colorAcento: "#0F172A",
-    stackPrincipal: ["TypeScript", "NextAuth / OAuth", "Docker", "GitHub API", "Playwright", "Vercel"],
-    logrosDestacados: [
-      "Automatizó la verificación de renderizado con headless browser y pipelines de calidad.",
-      "Integró motores de notificación transaccional por correo con plantillas parametrizadas.",
-    ],
-    disponible: true,
-  },
-  {
-    id: 4,
-    nombre: "Mateo",
-    apellido: "Desarrollador 4",
-    rolPrincipal: "Fullstack Analytics, Data Viz & UX Engineer",
-    especialidad: "Gráficos Interactivos SVG · Telemetría · Heurísticas UX",
-    bio: "Especialista en visualización de datos interactiva sin dependencias pesadas, métricas en tiempo real, auditoría heurística (Nielsen/Krug) y validación de archivos.",
-    email: "mateo@kodexasquad.dev",
-    githubUser: "tailwindlabs",
-    linkedinUrl: "https://linkedin.com",
-    ubicacion: "Argentina (UTC-3)",
-    aniosExperiencia: 3,
-    avatarIniciales: "MA",
-    colorAcento: "#1E293B",
-    stackPrincipal: ["React 19", "SVG Data Viz", "SQL Analytics", "Tailwind CSS", "Web APIs", "UX Heuristics"],
-    logrosDestacados: [
-      "Desarrolló motores de gráficos SVG nativos para reportes gerenciales y análisis de rentabilidad.",
-      "Implementó exportación nativa a CSV (UTF-8 BOM) y PDF (A4 print-ready) sin librerías externas.",
-    ],
-    disponible: true,
-  },
-];
+export { INTEGRANTES_INICIALES };
 
 // BACKEND: GET /api/stack → tabla tecnologia_stack
 export const STACK_TECNOLOGIAS: TecnologiaStack[] = [

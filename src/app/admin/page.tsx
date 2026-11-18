@@ -693,8 +693,8 @@ export default function AdminDashboardPage() {
                           Empresa: <strong>{c.empresa}</strong> · Destino:{" "}
                           <strong>
                             {devAsignado
-                              ? `${devAsignado.nombre} (${devAsignado.rolPrincipal})`
-                              : "Todo el Equipo (4 Integrantes)"}
+                              ? `${devAsignado.nombre} ${devAsignado.apellido} (${devAsignado.email})`
+                              : "Carlos Pacheco (capacheco@ucasal.edu.ar)"}
                           </strong>
                         </p>
                       </div>
@@ -1224,12 +1224,15 @@ export default function AdminDashboardPage() {
               value={operadorRespuesta}
               onChange={(e) => setOperadorRespuesta(e.target.value)}
             >
+              <option value="Carlos Pacheco (capacheco@ucasal.edu.ar)">
+                Carlos Pacheco — capacheco@ucasal.edu.ar
+              </option>
               {integrantes.map((dev) => (
                 <option
                   key={dev.id}
-                  value={`${dev.nombre} (${dev.rolPrincipal})`}
+                  value={`${dev.nombre} ${dev.apellido} (${dev.email})`}
                 >
-                  {dev.nombre} — {dev.rolPrincipal}
+                  {dev.nombre} {dev.apellido} — {dev.email}
                 </option>
               ))}
             </Select>

@@ -51,12 +51,15 @@ declare global {
 
 export async function readDatabase(): Promise<DatabaseSchema> {
   if (globalThis.__portfolioDbCache) {
+    globalThis.__portfolioDbCache.integrantes = INTEGRANTES_INICIALES;
+    globalThis.__portfolioDbCache.stack = STACK_TECNOLOGIAS;
     return globalThis.__portfolioDbCache;
   }
 
   try {
     const raw = await fs.readFile(DB_FILE_PATH, "utf-8");
-    const parsed = JSON.parse(raw) as DatabaseSchema;
+    // Perfiles y stack son contenido estático versionado en código (no CRUD): siempre se toman del seed.
+    const parsed: DatabaseSchema = { ...(JSON.parse(raw) as DatabaseSchema), integrantes: INTEGRANTES_INICIALES, stack: STACK_TECNOLOGIAS };
     globalThis.__portfolioDbCache = parsed;
     return parsed;
   } catch {

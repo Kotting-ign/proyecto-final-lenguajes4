@@ -30,6 +30,11 @@ import {
   type UsuarioRegistrado,
 } from "@/data/portfolio";
 import type { DatabaseSchema } from "@/lib/db/persistent-store";
+import {
+  enviarCorreoContactoEmailJS,
+  enviarRespuestaOperadorEmailJS,
+  type ResultadoEmailJS,
+} from "@/lib/email/emailjs";
 
 export interface SesionActiva {
   rol: RolSistema;
@@ -81,6 +86,9 @@ interface PortfolioContextValue {
   sincronizandoBd: boolean;
   modalAuthAbierto: boolean;
   proyectoPendienteId: number | null;
+  /** Destinatario preseleccionado del formulario de contacto: "carlos-pacheco" o el id (string) de un integrante. */
+  contactoDestino: string;
+  setContactoDestino: (valor: string) => void;
   abrirModalAuth: (proyectoId?: number) => void;
   cerrarModalAuth: () => void;
   iniciarSesionEmail: (email: string, password: string) => { ok: boolean; error?: string };
@@ -88,7 +96,7 @@ interface PortfolioContextValue {
   loginExternoOAuth: (proveedor: "google" | "github") => void;
   cambiarRolDemoRapido: (rol: RolSistema) => void;
   cerrarSesion: () => void;
-  enviarConsulta: (input: NuevaConsultaInput) => void;
+  enviarConsulta: (input: NuevaConsultaInput) => Promise<ResultadoEmailJS | undefined>;
   responderConsulta: (consultaId: number, operadorNombre: string, mensajeRespuesta: string) => void;
   cambiarEstadoConsulta: (consultaId: number, nuevoEstado: EstadoConsulta) => void;
   guardarProyecto: (draft: ProyectoDraft, editarId?: number) => void;
@@ -141,6 +149,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
 
   const [modalAuthAbierto, setModalAuthAbierto] = useState(false);
   const [proyectoPendienteId, setProyectoPendienteId] = useState<number | null>(null);
+  const [contactoDestino, setContactoDestino] = useState<string>("carlos-pacheco");
 
   const aplicarSnapshotBd = useCallback((db: DatabaseSchema) => {
     setIntegrantes(db.integrantes);
@@ -163,12 +172,18 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action, payload }),
         });
-        const data = (await res.json()) as { ok: boolean; db?: DatabaseSchema };
+        const data = (await res.json()) as {
+          ok: boolean;
+          db?: DatabaseSchema;
+          emailResult?: ResultadoEmailJS;
+        };
         if (data.ok && data.db) {
           aplicarSnapshotBd(data.db);
         }
+        return data.emailResult;
       } catch {
         // Fallback en memoria si el servidor está reiniciando
+        return undefined;
       } finally {
         setSincronizandoBd(false);
       }
@@ -378,8 +393,25 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   }, [persistirSesionLocal]);
 
   const enviarConsulta = useCallback(
-    (input: NuevaConsultaInput) => {
-      void mutateBackend("ENVIAR_CONSULTA", { ...input });
+    async (input: NuevaConsultaInput): Promise<ResultadoEmailJS | undefined> => {
+      const serverRes = await mutateBackend("ENVIAR_CONSULTA", { ...input });
+      if (serverRes) return serverRes;
+
+      // Fallback cliente para despliegue estático (GitHub Pages):
+      setConsultas((prev) => {
+        const nuevoId = Math.max(0, ...prev.map((c) => c.id)) + 1;
+        return [
+          {
+            id: nuevoId,
+            ...input,
+            estado: "Pendiente",
+            fechaCreacion: new Date().toISOString(),
+            respuestas: [],
+          },
+          ...prev,
+        ];
+      });
+      return await enviarCorreoContactoEmailJS(input);
     },
     [mutateBackend],
   );
@@ -390,9 +422,42 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
         consultaId,
         operadorNombre,
         mensajeRespuesta,
+      }).then((serverRes) => {
+        if (serverRes) return;
+        const target = consultas.find((c) => c.id === consultaId);
+        if (target) {
+          void enviarRespuestaOperadorEmailJS({
+            destinatarioNombre: target.nombreCompleto,
+            destinatarioEmail: target.email,
+            operadorNombre,
+            asuntoOriginal: target.asunto,
+            mensajeRespuesta,
+          });
+        }
+        setConsultas((prev) =>
+          prev.map((c) =>
+            c.id === consultaId
+              ? {
+                  ...c,
+                  estado: "Respondido",
+                  respuestas: [
+                    ...c.respuestas,
+                    {
+                      id: c.respuestas.length + 1,
+                      consultaId,
+                      operadorNombre,
+                      mensajeRespuesta,
+                      enviadoPorEmail: true,
+                      fechaEnvio: new Date().toISOString(),
+                    },
+                  ],
+                }
+              : c,
+          ),
+        );
       });
     },
-    [mutateBackend],
+    [mutateBackend, consultas],
   );
 
   const cambiarEstadoConsulta = useCallback(
@@ -501,7 +566,8 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       sincronizandoBd,
       modalAuthAbierto,
       proyectoPendienteId,
-      abrirModalAuth,
+      contactoDestino,
+      setContactoDestino,      abrirModalAuth,
       cerrarModalAuth,
       iniciarSesionEmail,
       registrarNuevoUsuario,
@@ -538,7 +604,8 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       sincronizandoBd,
       modalAuthAbierto,
       proyectoPendienteId,
-      abrirModalAuth,
+      contactoDestino,
+      setContactoDestino,      abrirModalAuth,
       cerrarModalAuth,
       iniciarSesionEmail,
       registrarNuevoUsuario,
